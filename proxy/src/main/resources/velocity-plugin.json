@@ -1,0 +1,6 @@
+{
+  "id": "proxy",
+  "name": "proxy",
+  "version": "${version}",
+  "main": "user.meistertisch.de.proxy.Proxy"
+}

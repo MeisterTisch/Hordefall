@@ -1,0 +1,7 @@
+name: game
+prefix: HF_Game
+version: '${version}'
+
+main: user.meistertisch.de.game.Game
+api-version: '26.3'
+load: POSTWORLD

@@ -1,0 +1,7 @@
+name: lobby
+prefix: HF_Lobby
+version: '${version}'
+
+main: user.meistertisch.de.lobby.Lobby
+api-version: '26.3'
+load: POSTWORLD
