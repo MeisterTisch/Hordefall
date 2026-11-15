@@ -1,5 +1,7 @@
 package user.meistertisch.de.game.round;
 
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.Nullable;
 import user.meistertisch.de.game.Game;
@@ -47,8 +49,18 @@ public class RoundManager {
         activeRounds.clear();
     }
 
-    public void registerRound(UUID owner){
-        activeRounds.put(owner, new Round(owner));
+    public void registerRound(Player owner){
+        Round round = new Round(owner.getUniqueId());
+        activeRounds.put(owner.getUniqueId(), round);
+        round.prepare(Game.getPlugin(), "arena1").thenRun(() -> {
+            // Runs only once the world is 100% loaded on the main thread!
+            owner.teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
+            round.transitionTo(RoundState.WAITING);
+        }).exceptionally(ex -> {
+            owner.sendMessage("Failed to load arena!");
+            Game.getRoundManager().unregisterRound(owner.getUniqueId());
+            return null;
+        });
     }
 
     public void unregisterRound(UUID owner){
