@@ -55,7 +55,7 @@ public class RoundManager {
         round.prepare(Game.getPlugin(), "arena1").thenRun(() -> {
             // Runs only once the world is 100% loaded on the main thread!
             owner.teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
-            round.transitionTo(RoundState.WAITING);
+            round.transitionTo(RoundState.RUNNING); // TODO: Back to Waiting
         }).exceptionally(ex -> {
             owner.sendMessage("Failed to load arena!");
             Game.getRoundManager().unregisterRound(owner.getUniqueId());

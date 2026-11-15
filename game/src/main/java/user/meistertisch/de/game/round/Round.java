@@ -1,6 +1,8 @@
 package user.meistertisch.de.game.round;
 
 import org.bukkit.*;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -21,6 +23,7 @@ public class Round {
     private RoundState state = RoundState.PREPARING;
     private long tickCounter = 0;
     private World arenaWorld;
+    private double tempMovementSpeed = 0;
 
     public Round(UUID owner) {
         this.owner = owner;
@@ -29,7 +32,13 @@ public class Round {
     void tick() {
         // Only advance the run timer while actively running (freeze on LEVEL_UP or PAUSED)
         if (state != RoundState.RUNNING) {
-            return;
+//            return;
+        }
+
+        if(tickCounter > 45 * 20){
+            transitionTo(RoundState.RUNNING);
+        } else if(tickCounter > 15 * 20){
+            transitionTo(RoundState.LEVEL_UP);
         }
 
         tickCounter++;
@@ -39,7 +48,7 @@ public class Round {
         }
 
         // Optional: check if the 30-minute run limit (36,000 ticks) is reached[cite: 5, 34]
-        if (tickCounter >= 5 * 60 * 20) { // minutes * 60 seconds * 20 ticks/second
+        if (tickCounter >= 1 * 60 * 20) { // minutes * 60 seconds * 20 ticks/second
             transitionTo(RoundState.ENDING);
         }
     }
@@ -57,14 +66,13 @@ public class Round {
 
         // 1. Handle leaving the previous state
         if (previous == RoundState.LEVEL_UP) {
-            // TODO
-//            unfreezePlayer(); // Restore movement & jump attributes
+            unfreezePlayer(); // Restore movement & jump attributes
         }
 
         // 2. Handle entering the new state
         switch (next) {
             // TODO
-//            case LEVEL_UP -> freezePlayer(); // Set speed & jump strength to 0
+            case LEVEL_UP -> freezePlayer(); // Set speed & jump strength to 0
             case ENDING -> cleanup();        // Cancel task, clear monsters/projectile
             default -> {}
         }
@@ -128,6 +136,40 @@ public class Round {
         });
     }
 
+    private void freezePlayer(){
+        Player player = Bukkit.getPlayer(owner);
+        if(player == null){
+            return;
+        }
+
+        AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        tempMovementSpeed = (speedAttr != null) ? speedAttr.getBaseValue() : 0.1;
+
+        if (speedAttr != null) {
+            speedAttr.setBaseValue(0.0);
+        }
+    }
+
+    private void unfreezePlayer(){
+        Player player = Bukkit.getPlayer(owner);
+        if(player == null){
+            return;
+        }
+
+        AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        if (speedAttr != null) {
+            speedAttr.setBaseValue(tempMovementSpeed);
+        }
+    }
+
+    private void cleanup() {
+        // 1. Restore player state (speed, health scale, clear inventory/effects)
+        // 2. Remove all spawned monsters, projectiles, and display entities (Milestone 2+)[cite: 37]
+        // 3. Clear internal maps/lists so nothing leaks[cite: 37]
+
+        cleanupWorld();
+    }
+
     private void cleanupWorld() {
         if (arenaWorld == null) return;
 
@@ -149,14 +191,6 @@ public class Round {
                 Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't delete the folder!", e);
             }
         });
-    }
-
-    private void cleanup() {
-        // 1. Restore player state (speed, health scale, clear inventory/effects)
-        // 2. Remove all spawned monsters, projectiles, and display entities (Milestone 2+)[cite: 37]
-        // 3. Clear internal maps/lists so nothing leaks[cite: 37]
-
-        cleanupWorld();
     }
 
     // GETTER

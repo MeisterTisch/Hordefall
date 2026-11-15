@@ -25,7 +25,6 @@ public class EventJoin implements Listener {
         UUID uuid = event.getPlayer().getUniqueId();
         Round round = Game.getRoundManager().getRound(uuid);
         if(round == null){
-
             Game.getRoundManager().registerRound(event.getPlayer());
         } else if (round.getState() != RoundState.WAITING){
             event.getPlayer().kick(Component.text("Round not in Waiting!"), PlayerKickEvent.Cause.IDLING);
