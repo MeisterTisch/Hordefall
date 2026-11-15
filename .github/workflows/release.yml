@@ -24,7 +24,7 @@ jobs:
         with:
           tag_prefix: "v"
           major_pattern: "(MAJOR)"
-          minor_pattern: "feat:"
+          minor_pattern: 'feature:'
           patch_pattern: "fix:"
           default_bump: "patch"
           version_format: "${major}.${minor}.${patch}"
