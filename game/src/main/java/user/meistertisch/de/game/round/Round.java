@@ -1,16 +1,14 @@
 package user.meistertisch.de.game.round;
 
-import org.bukkit.scheduler.BukkitRunnable;
-
 import java.util.UUID;
 
 public class Round {
-    private UUID playerOwner;
+    private UUID owner;
     private RoundState state = RoundState.WAITING;
     private long tickCounter = 0;
 
-    public Round(UUID playerOwner) {
-        this.playerOwner = playerOwner;
+    public Round(UUID owner) {
+        this.owner = owner;
     }
 
     void tick() {
@@ -22,7 +20,7 @@ public class Round {
         tickCounter++;
 
         // Optional: check if the 30-minute run limit (36,000 ticks) is reached[cite: 5, 34]
-        if (tickCounter >= 36_000L) {
+        if (tickCounter >= 5 * 60 * 20) { // minutes * 60 seconds * 20 ticks/second
             transitionTo(RoundState.ENDING);
         }
     }
@@ -59,13 +57,19 @@ public class Round {
         };
     }
 
+    private void cleanup() {
+        // 1. Restore player state (speed, health scale, clear inventory/effects)
+        // 2. Remove all spawned monsters, projectiles, and display entities (Milestone 2+)[cite: 37]
+        // 3. Clear internal maps/lists so nothing leaks[cite: 37]
+    }
+
     // GETTER
     public RoundState getState() {
         return state;
     }
 
-    public UUID getPlayerOwner() {
-        return playerOwner;
+    public UUID getOwner() {
+        return owner;
     }
 
     public long getTickCounter() {
@@ -82,7 +86,7 @@ public class Round {
         this.state = state;
     }
 
-    public void setPlayerOwner(UUID playerOwner) {
-        this.playerOwner = playerOwner;
+    public void setOwner(UUID owner) {
+        this.owner = owner;
     }
 }
