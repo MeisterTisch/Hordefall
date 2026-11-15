@@ -16,7 +16,7 @@ subprojects {
     }
 
     extensions.configure<JavaPluginExtension> {
-        toolchain.languageVersion.set(JavaLanguageVersion.of(27))
+        toolchain.languageVersion.set(JavaLanguageVersion.of(25))
     }
 
     tasks.withType<JavaCompile> {
