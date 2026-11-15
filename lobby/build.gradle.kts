@@ -1,20 +1,12 @@
 plugins {
-    id("java-library")
-    id("com.gradleup.shadow") version "9.6.1"
-    id("xyz.jpenilla.run-paper") version "3.1.0"
-}
-
-repositories {
-    mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
+    `java-library`
+    id("com.gradleup.shadow")
+    id("xyz.jpenilla.run-paper")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:26.3.build.+")
-}
-
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    implementation(project(":common-paper"))
 }
 
 tasks {
@@ -23,15 +15,12 @@ tasks {
     }
 
     runServer {
-        // Configure the Minecraft version for our task.
-        // This is the only required configuration besides applying the plugin.
-        // Your plugin's jar (or shadowJar if present) will be used automatically.
         minecraftVersion("26.3")
         jvmArgs("-Xms2G", "-Xmx2G", "-Dcom.mojang.eula.agree=true")
     }
 
     processResources {
-        val props = mapOf("version" to version )
+        val props = mapOf("version" to version)
         filesMatching("plugin.yml") {
             expand(props)
         }
@@ -39,10 +28,20 @@ tasks {
 
     shadowJar {
         archiveClassifier.set("")
-        relocate("com.zaxxer.hikari", "de.meistertisch.hordefall.libs.hikari")
-        relocate("org.mariadb.jdbc", "de.meistertisch.hordefall.libs.mariadb")
-        relocate("redis.clients", "de.meistertisch.hordefall.libs.redis")
-        relocate("org.apache.commons.pool2", "de.meistertisch.hordefall.libs.pool2")
+        relocate("com.zaxxer.hikari", "user.meistertisch.de.hordefall.libs.hikari")
+        relocate("org.mariadb.jdbc", "user.meistertisch.de.hordefall.libs.mariadb")
+        relocate("redis.clients", "user.meistertisch.de.hordefall.libs.redis")
+        relocate("org.apache.commons.pool2", "user.meistertisch.de.hordefall.libs.pool2")
+
+        dependencies {
+            exclude(dependency("org.slf4j:slf4j-api"))
+            exclude(dependency("com.google.code.gson:gson"))
+            exclude(dependency("com.google.errorprone:error_prone_annotations"))
+        }
+
+        filesMatching("META-INF/services/**") {
+            duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        }
         mergeServiceFiles()
     }
 }

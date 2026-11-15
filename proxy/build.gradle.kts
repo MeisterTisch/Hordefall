@@ -1,20 +1,12 @@
 plugins {
-    id("java-library")
-    id("com.gradleup.shadow") version "9.6.1"
+    `java-library`
+    id("com.gradleup.shadow")
     id("xyz.jpenilla.run-velocity")
-}
-
-repositories {
-    mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
 }
 
 dependencies {
     compileOnly("com.velocitypowered:velocity-api:4.2.1-SNAPSHOT")
-}
-
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    implementation(project(":common"))
 }
 
 tasks {
@@ -23,9 +15,6 @@ tasks {
     }
 
     runVelocity {
-        // Configure the Velocity version for our task.
-        // This is the only required configuration besides applying the plugin.
-        // Your plugin's jar (or shadowJar if present) will be used automatically.
         velocityVersion("4.2.1-SNAPSHOT")
     }
 
@@ -38,10 +27,20 @@ tasks {
 
     shadowJar {
         archiveClassifier.set("")
-        relocate("com.zaxxer.hikari", "de.meistertisch.hordefall.libs.hikari")
-        relocate("org.mariadb.jdbc", "de.meistertisch.hordefall.libs.mariadb")
-        relocate("redis.clients", "de.meistertisch.hordefall.libs.redis")
-        relocate("org.apache.commons.pool2", "de.meistertisch.hordefall.libs.pool2")
+        relocate("com.zaxxer.hikari", "user.meistertisch.de.hordefall.libs.hikari")
+        relocate("org.mariadb.jdbc", "user.meistertisch.de.hordefall.libs.mariadb")
+        relocate("redis.clients", "user.meistertisch.de.hordefall.libs.redis")
+        relocate("org.apache.commons.pool2", "user.meistertisch.de.hordefall.libs.pool2")
+
+        dependencies {
+            exclude(dependency("org.slf4j:slf4j-api"))
+            exclude(dependency("com.google.code.gson:gson"))
+            exclude(dependency("com.google.errorprone:error_prone_annotations"))
+        }
+
+        filesMatching("META-INF/services/**") {
+            duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        }
         mergeServiceFiles()
     }
 }

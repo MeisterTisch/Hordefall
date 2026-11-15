@@ -4,6 +4,8 @@ package user.meistertisch.de;
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
     static void main() {
+        // Todo: Was hier reinkommt: GUI-Framework, ItemBuilder, UI-Helfer, Config-Helfer (alles was paper nutzen muss)
+
         //TIP Press <shortcut actionId="ShowIntentionActions"/> with your caret at the highlighted text
         // to see how IntelliJ IDEA suggests fixing it.
         IO.println(String.format("Hello and welcome!"));
