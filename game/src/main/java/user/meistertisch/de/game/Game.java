@@ -5,6 +5,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import user.meistertisch.de.game.round.EventJoin;
+import user.meistertisch.de.game.round.EventVanillaCancel;
 import user.meistertisch.de.game.round.RoundManager;
 
 public final class Game extends JavaPlugin {
@@ -22,6 +23,7 @@ public final class Game extends JavaPlugin {
 
         // EVENTS
         pluginManager.registerEvents(new EventJoin(), this);
+        pluginManager.registerEvents(new EventVanillaCancel(), this);
     }
 
     @Override
