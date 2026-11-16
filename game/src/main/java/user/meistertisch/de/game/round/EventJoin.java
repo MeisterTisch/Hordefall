@@ -19,15 +19,12 @@ import java.util.logging.Level;
 public class EventJoin implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event){
-        // TODO: Remove or refactor. It's for debug currently
-
-
         UUID uuid = event.getPlayer().getUniqueId();
         Round round = Game.getRoundManager().getRound(uuid);
+
         if(round == null){
-            Game.getRoundManager().registerRound(event.getPlayer());
-        } else if (round.getState() != RoundState.WAITING){
-            event.getPlayer().kick(Component.text("Round not in Waiting!"), PlayerKickEvent.Cause.IDLING);
+            Game.getRoundManager().registerRound(event.getPlayer()); // TODO: Remove or refactor. It's for debug currently
+            event.getPlayer().kick(Component.text("No active round!"), PlayerKickEvent.Cause.ILLEGAL_ACTION);
         }
     }
 
