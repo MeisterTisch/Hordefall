@@ -49,14 +49,14 @@ public class RoundManager {
         activeRounds.clear();
     }
 
-    public void registerRound(Player owner){
+    public void registerRound(Player owner, String arena){
         Round round = new Round(owner.getUniqueId());
         activeRounds.put(owner.getUniqueId(), round);
-        round.prepare(Game.getPlugin(), "arena1").thenRun(() -> {
+        round.prepare(Game.getPlugin(), arena).thenRun(() -> {
             // Runs only once the world is 100% loaded on the main thread!
             owner.teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
         }).exceptionally(ex -> {
-            owner.sendMessage("Failed to load arena!");
+            owner.sendMessage("Failed to load arena '" + arena + "'!");
             Game.getRoundManager().unregisterRound(owner.getUniqueId());
             return null;
         });
@@ -72,5 +72,9 @@ public class RoundManager {
     @Nullable
     public Round getRound(UUID owner){
         return activeRounds.get(owner);
+    }
+
+    public boolean hasRound(UUID owner) {
+        return activeRounds.containsKey(owner);
     }
 }
