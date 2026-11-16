@@ -1,5 +1,6 @@
 package user.meistertisch.de.game.round;
 
+import net.kyori.adventure.text.Component;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
@@ -32,13 +33,25 @@ public class Round {
     void tick() {
         // Only advance the run timer while actively running (freeze on LEVEL_UP or PAUSED)
         if (state != RoundState.RUNNING) {
-//            return;
+//            return; // TODO: uncomment return. Only for debug currently
+        }
+
+        if (state == RoundState.WAITING) {
+            return; // TODO: remove return. Only for debug currently
+        }
+
+        if(state == RoundState.COUNTDOWN && tickCounter % 20 == 0){
+            Player player = Bukkit.getPlayer(owner);
+            assert player != null;
+            player.sendMessage(Component.text("Countdown: " + tickCounter % 20));
         }
 
         if(tickCounter > 45 * 20){
             transitionTo(RoundState.RUNNING);
         } else if(tickCounter > 15 * 20){
             transitionTo(RoundState.LEVEL_UP);
+        } else if(tickCounter > 5 * 20){
+            transitionTo(RoundState.RUNNING);
         }
 
         tickCounter++;
@@ -72,6 +85,7 @@ public class Round {
         // 2. Handle entering the new state
         switch (next) {
             // TODO
+            case COUNTDOWN -> preparePlayer();
             case LEVEL_UP -> freezePlayer(); // Set speed & jump strength to 0
             case ENDING -> cleanup();        // Cancel task, clear monsters/projectile
             default -> {}
@@ -136,11 +150,23 @@ public class Round {
         });
     }
 
+    private void preparePlayer() {
+        Player player;
+        do {
+            player = Bukkit.getPlayer(owner);
+        } while (player == null);
+
+        AttributeInstance attr = player.getAttribute(Attribute.MOVEMENT_SPEED);
+        if (attr != null) attr.setBaseValue(0.1);
+        attr = player.getAttribute(Attribute.JUMP_STRENGTH);
+        if (attr != null) attr.setBaseValue(0);
+    }
+
     private void freezePlayer(){
-        Player player = Bukkit.getPlayer(owner);
-        if(player == null){
-            return;
-        }
+        Player player;
+        do {
+            player = Bukkit.getPlayer(owner);
+        } while(player == null);
 
         AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
         tempMovementSpeed = (speedAttr != null) ? speedAttr.getBaseValue() : 0.1;
@@ -166,7 +192,7 @@ public class Round {
         // 1. Restore player state (speed, health scale, clear inventory/effects)
         // 2. Remove all spawned monsters, projectiles, and display entities (Milestone 2+)[cite: 37]
         // 3. Clear internal maps/lists so nothing leaks[cite: 37]
-
+        kickPlayers();
         cleanupWorld();
     }
 
@@ -191,6 +217,14 @@ public class Round {
                 Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't delete the folder!", e);
             }
         });
+    }
+
+    private void kickPlayers(){
+        if (arenaWorld == null) return;
+
+        if(!arenaWorld.getPlayers().isEmpty()){
+            arenaWorld.getPlayers().forEach(player -> player.kick(Component.text("Thanks for playing. Round ended.")));
+        }
     }
 
     // GETTER

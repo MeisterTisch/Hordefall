@@ -24,7 +24,11 @@ public class EventJoin implements Listener {
 
         if(round == null){
             Game.getRoundManager().registerRound(event.getPlayer()); // TODO: Remove or refactor. It's for debug currently
-            event.getPlayer().kick(Component.text("No active round!"), PlayerKickEvent.Cause.ILLEGAL_ACTION);
+//            event.getPlayer().kick(Component.text("No active round!"), PlayerKickEvent.Cause.ILLEGAL_ACTION);
+        } else {
+            System.out.println("Countdown!");
+            round.transitionTo(RoundState.COUNTDOWN);
+            event.getPlayer().teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
         }
     }
 
