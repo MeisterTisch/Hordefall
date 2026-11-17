@@ -32,7 +32,7 @@ public class CommandRound implements TabExecutor {
 
         switch (args[0].toLowerCase()){
             case "start" -> startRound(player, "arena1");
-            case "stop" -> player.sendMessage("Stop todo");
+            case "stop" -> stopRound(player);
             case "state" -> player.sendMessage("State todo");
             case "debug" -> player.sendMessage("Debug todo");
             default -> player.sendMessage("Invalid Syntax!");
@@ -57,6 +57,18 @@ public class CommandRound implements TabExecutor {
         }
 
         owner.sendMessage("Registering new Round in arena '" + arena + "' for '" + owner.getName() + "'.");
-        Game.getRoundManager().registerRound(owner, arena);
+        manager.registerRound(owner, arena);
+    }
+
+    private void stopRound(Player owner){
+        RoundManager manager = Game.getRoundManager();
+
+        if(!manager.hasRound(owner.getUniqueId())){
+            owner.sendMessage("No active round open!");
+            return;
+        }
+
+        owner.sendMessage("Stopping Round for '" + owner.getName() + "'.");
+        manager.unregisterRound(owner.getUniqueId());
     }
 }

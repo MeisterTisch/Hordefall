@@ -55,9 +55,9 @@ public class RoundManager {
         round.prepare(Game.getPlugin(), arena).thenRun(() -> {
             // Runs only once the world is 100% loaded on the main thread!
             owner.teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
-        }).exceptionally(ex -> {
+        }).exceptionally(_ -> {
             owner.sendMessage("Failed to load arena '" + arena + "'!");
-            Game.getRoundManager().unregisterRound(owner.getUniqueId());
+            this.unregisterRound(owner.getUniqueId());
             return null;
         });
     }
