@@ -1,24 +1,29 @@
 package user.meistertisch.de.game.round;
 
+import net.kyori.adventure.audience.Audience;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.Nullable;
 import user.meistertisch.de.game.Game;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public class RoundManager {
     private final HashMap<UUID, Round> activeRounds;
+    private final Set<UUID> debugViewers;
     private BukkitTask tickTask;
 
     public RoundManager(){
         activeRounds = new HashMap<>();
+        debugViewers = new HashSet<>();
     }
 
+    // Tick Task
     public void startTickTask(){
         if(tickTask != null) return;
 
@@ -49,6 +54,8 @@ public class RoundManager {
         activeRounds.clear();
     }
 
+
+    // Register
     public void registerRound(Player owner, String arena){
         Round round = new Round(owner.getUniqueId());
         activeRounds.put(owner.getUniqueId(), round);
@@ -69,6 +76,8 @@ public class RoundManager {
         }
     }
 
+
+    // Getter
     @Nullable
     public Round getRound(UUID owner){
         return activeRounds.get(owner);
@@ -76,5 +85,33 @@ public class RoundManager {
 
     public boolean hasRound(UUID owner) {
         return activeRounds.containsKey(owner);
+    }
+
+
+    // Debug
+    public boolean addDebugViewer(UUID viewer){
+        return debugViewers.add(viewer);
+    }
+
+    public boolean removeDebugViewer(UUID viewer){
+        return debugViewers.remove(viewer);
+    }
+
+    public boolean isDebugViewer(UUID viewer){
+        return debugViewers.contains(viewer);
+    }
+
+    public Set<UUID> getDebugViewers(){
+        return Set.copyOf(debugViewers);
+    }
+
+    public Audience getDebugAudience(World world){
+        return Audience.audience(
+                debugViewers.stream()
+                        .map(Bukkit::getPlayer)
+                        .filter(Objects::nonNull) // Crucial: prevents NPE if a player is offline
+                        .filter(player -> player.getWorld() != world)
+                        .collect(Collectors.toList())
+        );
     }
 }

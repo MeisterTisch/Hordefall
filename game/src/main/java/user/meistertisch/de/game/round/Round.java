@@ -1,12 +1,15 @@
 package user.meistertisch.de.game.round;
 
+import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.plugin.java.JavaPlugin;
 import org.codehaus.plexus.util.FileUtils;
 import user.meistertisch.de.game.Game;
 
@@ -14,17 +17,28 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Time;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Level;
 
 public class Round {
+    private static final int ROUND_DURATION = 30 * 60 * 20; // minutes * 60 seconds * 20 ticks/second
     private UUID owner;
     private RoundState state = RoundState.PREPARING;
     private long tickCounter = 0;
     private World arenaWorld;
     private double tempMovementSpeed = 0;
+
+    private int mobsQuantity = 0;
+
+    // Debug
+    private static final int SAMPLE_SIZE = 20; // Rolling average over the last 20 ticks (1 second)
+    private final long[] tickSamplesNanos = new long[SAMPLE_SIZE];
+    private int sampleIndex = 0;
+    private int sampleCount = 0;
 
     public Round(UUID owner) {
         this.owner = owner;
@@ -36,16 +50,76 @@ public class Round {
             return;
         }
 
-        tickCounter++;
+        long startNanos = System.nanoTime();
 
-        if(tickCounter % (5 * 20) == 0){
-            System.out.println("Tick, Status: " + state);
+        tickCounter++;
+        // HERE LOGIC FOR TICKING (Monsters, Projectiles, ...)
+
+        long durationNanos = System.nanoTime() - startNanos;
+        recordTickDuration(durationNanos);
+
+        if (tickCounter % 20 == 0) {
+            updateBossBar();
         }
 
         // Optional: check if the 30-minute run limit (36,000 ticks) is reached[cite: 5, 34]
-        if (tickCounter >= 1 * 60 * 20) { // minutes * 60 seconds * 20 ticks/second
+        if (tickCounter >= ROUND_DURATION) {
             transitionTo(RoundState.ENDING);
         }
+    }
+
+    // Debug
+    private void recordTickDuration(long durationNanos) {
+        tickSamplesNanos[sampleIndex] = durationNanos;
+        sampleIndex = (sampleIndex + 1) % SAMPLE_SIZE;
+        if (sampleCount < SAMPLE_SIZE) {
+            sampleCount++;
+        }
+    }
+
+    public double getAverageTickMillis() {
+        if (sampleCount == 0) return 0.0;
+        long sum = 0;
+        for (int i = 0; i < sampleCount; i++) {
+            sum += tickSamplesNanos[i];
+        }
+        // Divide by sampleCount, then divide by 1,000,000 to convert nanoseconds -> milliseconds
+        return (sum / (double) sampleCount) / 1_000_000.0;
+    }
+
+    public double getMaxTickMillis() {
+        long max = 0;
+        for (int i = 0; i < sampleCount; i++) {
+            if (tickSamplesNanos[i] > max) {
+                max = tickSamplesNanos[i];
+            }
+        }
+        return max / 1_000_000.0;
+    }
+
+    private void updateBossBar() {
+        //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
+        float progress = (float) tickCounter / ROUND_DURATION;
+        Component title = getDebugMessage();
+
+        BossBar debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+        Game.getRoundManager().getDebugAudience(arenaWorld).showBossBar(debugBar);
+    }
+
+    public Component getDebugMessage() {
+        Duration duration = Duration.ofMillis(tickCounter * 50L);
+        String time = String.format("%02d:%02d:%02d", duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
+        double tickAverage = getAverageTickMillis();
+        double tickMax = getMaxTickMillis();
+
+        return MiniMessage.miniMessage().deserialize(
+                "State: <state> | Time: <time> | Tick: <avg> ms (Max: <max> ms) | Mobs: <mobs>",
+                Placeholder.unparsed("state", state.name()),
+                Placeholder.unparsed("time", time),
+                Placeholder.unparsed("avg", String.format("%.2f", tickAverage)),
+                Placeholder.unparsed("max", String.format("%.2f", tickMax)),
+                Placeholder.unparsed("mobs", String.valueOf(mobsQuantity))
+        );
     }
 
     // States
@@ -56,8 +130,6 @@ public class Round {
 
         RoundState previous = this.state;
         this.state = next;
-
-
 
         // 1. Handle leaving the previous state
         if (previous == RoundState.LEVEL_UP) {
@@ -70,17 +142,18 @@ public class Round {
             case COUNTDOWN -> preparePlayer();
             case LEVEL_UP, PAUSED -> freezePlayer(); // Set speed & jump strength to 0
             case ENDING -> cleanup();        // Cancel task, clear monsters/projectile
-            default -> {}
+            default -> {
+            }
         }
     }
 
     private boolean isValidTransition(RoundState from, RoundState to) {
         return switch (from) {
             case PREPARING -> to == RoundState.WAITING;
-            case WAITING   -> to == RoundState.COUNTDOWN || to == RoundState.RUNNING || to == RoundState.ENDING;
+            case WAITING -> to == RoundState.COUNTDOWN || to == RoundState.RUNNING || to == RoundState.ENDING;
             case COUNTDOWN, LEVEL_UP, PAUSED -> to == RoundState.RUNNING || to == RoundState.ENDING;
-            case RUNNING   -> to == RoundState.LEVEL_UP || to == RoundState.PAUSED || to == RoundState.ENDING;
-            case ENDING    -> false; // Terminal state: once ending, never go back
+            case RUNNING -> to == RoundState.LEVEL_UP || to == RoundState.PAUSED || to == RoundState.ENDING;
+            case ENDING -> false; // Terminal state: once ending, never go back
         };
     }
 
@@ -144,11 +217,11 @@ public class Round {
         if (attr != null) attr.setBaseValue(0);
     }
 
-    private void freezePlayer(){
+    private void freezePlayer() {
         Player player;
         do {
             player = Bukkit.getPlayer(owner);
-        } while(player == null);
+        } while (player == null);
 
         AttributeInstance speedAttr = player.getAttribute(Attribute.MOVEMENT_SPEED);
         tempMovementSpeed = (speedAttr != null) ? speedAttr.getBaseValue() : 0.1;
@@ -158,9 +231,9 @@ public class Round {
         }
     }
 
-    private void unfreezePlayer(){
+    private void unfreezePlayer() {
         Player player = Bukkit.getPlayer(owner);
-        if(player == null){
+        if (player == null) {
             return;
         }
 
@@ -181,7 +254,7 @@ public class Round {
     private void cleanupWorld() {
         if (arenaWorld == null) return;
 
-        if(!arenaWorld.getPlayers().isEmpty()){
+        if (!arenaWorld.getPlayers().isEmpty()) {
             arenaWorld.getPlayers().forEach(Player::kick);
         }
 
@@ -201,10 +274,10 @@ public class Round {
         });
     }
 
-    private void kickPlayers(){
+    private void kickPlayers() {
         if (arenaWorld == null) return;
 
-        if(!arenaWorld.getPlayers().isEmpty()){
+        if (!arenaWorld.getPlayers().isEmpty()) {
             arenaWorld.getPlayers().forEach(player -> player.kick(Component.text("Thanks for playing. Round ended.")));
         }
     }

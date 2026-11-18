@@ -38,7 +38,10 @@ public class CommandRound implements TabExecutor {
                 if(args.length == 1) getState(player);
                 else switchState(player, args[1]);
             }
-            case "debug" -> player.sendMessage("Debug todo");
+            case "debug" -> {
+                if(args.length == 1) sendDebugMessage(player);
+                else changeDebugViewer(player, args[1]);
+            }
             default -> player.sendMessage("Invalid Syntax!");
         }
 
@@ -51,12 +54,18 @@ public class CommandRound implements TabExecutor {
             return Stream.of("start", "stop", "state", "debug")
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .toList();
-        } else if(args.length == 2 && args[0].equalsIgnoreCase("state")){
-            return RoundState
-                    .getListOfStates()
-                    .stream()
-                    .filter(s -> s.startsWith(args[1].toUpperCase()))
-                    .toList();
+        } else if(args.length == 2){
+            if(args[0].equalsIgnoreCase("state")){
+                return RoundState
+                        .getListOfStates()
+                        .stream()
+                        .filter(s -> s.startsWith(args[1].toUpperCase()))
+                        .toList();
+            } else if (args[0].equalsIgnoreCase("debug")){
+                return Stream.of("on", "off")
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .toList();
+            }
         }
 
         return List.of();
@@ -118,5 +127,38 @@ public class CommandRound implements TabExecutor {
         RoundState state = RoundState.valueOf(stateString);
         owner.sendMessage("Switching State from '" + round.getState().name() + "' to '" + stateString + "' for Round for '" + owner.getName() + "'.");
         round.transitionTo(state);
+    }
+
+    private void sendDebugMessage(Player owner){
+        Round round = Game.getRoundManager().getRound(owner.getUniqueId());
+        if(round == null){
+            owner.sendMessage("No active Round!");
+            return;
+        }
+
+        owner.sendMessage("Current Round from '" + owner.getName() + "':");
+        owner.sendMessage(round.getDebugMessage());
+    }
+
+    private void changeDebugViewer(Player owner, String argument){
+        RoundManager manager = Game.getRoundManager();
+
+        if(argument.equalsIgnoreCase("on")){
+            if(!manager.addDebugViewer(owner.getUniqueId())) {
+                owner.sendMessage("Already Debug Viewer!");
+                return;
+            }
+
+            owner.sendMessage("Added to Debug Viewers");
+        } else if(argument.equalsIgnoreCase("off")){
+            if(!manager.removeDebugViewer(owner.getUniqueId())){
+                owner.sendMessage("No Debug Viewer!");
+                return;
+            }
+
+            owner.sendMessage("Removed from Debug Viewers");
+        } else {
+            owner.sendMessage("Invalid Argument!");
+        }
     }
 }
