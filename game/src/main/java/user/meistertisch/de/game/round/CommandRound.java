@@ -10,6 +10,7 @@ import user.meistertisch.de.game.Game;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 public class CommandRound implements TabExecutor {
     // TabExecutor
@@ -46,6 +47,18 @@ public class CommandRound implements TabExecutor {
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String @NotNull [] args) {
+        if(args.length == 1){
+            return Stream.of("start", "stop", "state", "debug")
+                    .filter(s -> s.startsWith(args[0].toLowerCase()))
+                    .toList();
+        } else if(args.length == 2 && args[0].equalsIgnoreCase("state")){
+            return RoundState
+                    .getListOfStates()
+                    .stream()
+                    .filter(s -> s.startsWith(args[1].toUpperCase()))
+                    .toList();
+        }
+
         return List.of();
     }
 
