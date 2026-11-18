@@ -68,7 +68,7 @@ public class Round {
         switch (next) {
             // TODO
             case COUNTDOWN -> preparePlayer();
-            case LEVEL_UP -> freezePlayer(); // Set speed & jump strength to 0
+            case LEVEL_UP, PAUSED -> freezePlayer(); // Set speed & jump strength to 0
             case ENDING -> cleanup();        // Cancel task, clear monsters/projectile
             default -> {}
         }
