@@ -33,7 +33,10 @@ public class CommandRound implements TabExecutor {
         switch (args[0].toLowerCase()){
             case "start" -> startRound(player, "arena1");
             case "stop" -> stopRound(player);
-            case "state" -> player.sendMessage("State todo");
+            case "state" -> {
+                if(args.length == 1) getState(player);
+                else switchState(player, args[1]);
+            }
             case "debug" -> player.sendMessage("Debug todo");
             default -> player.sendMessage("Invalid Syntax!");
         }
@@ -70,5 +73,37 @@ public class CommandRound implements TabExecutor {
 
         owner.sendMessage("Stopping Round for '" + owner.getName() + "'.");
         manager.unregisterRound(owner.getUniqueId());
+    }
+
+    private void getState(Player owner){
+        RoundManager manager = Game.getRoundManager();
+        Round round = manager.getRound(owner.getUniqueId());
+
+        if(!manager.hasRound(owner.getUniqueId()) || round == null){
+            owner.sendMessage("No active round open!");
+            return;
+        }
+
+        owner.sendMessage("State is '" + round.getState().name() + "' for Round for '" + owner.getName() + "'.");
+    }
+
+    private void switchState(Player owner, String stateString){
+        RoundManager manager = Game.getRoundManager();
+        Round round = manager.getRound(owner.getUniqueId());
+
+        if(!manager.hasRound(owner.getUniqueId()) || round == null){
+            owner.sendMessage("No active round open!");
+            return;
+        }
+
+        stateString = stateString.toUpperCase();
+        if(!RoundState.getListOfStates().contains(stateString)){
+            owner.sendMessage("No such State!");
+            return;
+        }
+
+        RoundState state = RoundState.valueOf(stateString);
+        owner.sendMessage("Switching State from '" + round.getState().name() + "' to '" + stateString + "' for Round for '" + owner.getName() + "'.");
+        round.transitionTo(state);
     }
 }

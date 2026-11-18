@@ -33,25 +33,7 @@ public class Round {
     void tick() {
         // Only advance the run timer while actively running (freeze on LEVEL_UP or PAUSED)
         if (state != RoundState.RUNNING) {
-//            return; // TODO: uncomment return. Only for debug currently
-        }
-
-        if (state == RoundState.WAITING) {
-            return; // TODO: remove return. Only for debug currently
-        }
-
-        if(state == RoundState.COUNTDOWN && tickCounter % 20 == 0){
-            Player player = Bukkit.getPlayer(owner);
-            assert player != null;
-            player.sendMessage(Component.text("Countdown: " + tickCounter % 20));
-        }
-
-        if(tickCounter > 45 * 20){
-            transitionTo(RoundState.RUNNING);
-        } else if(tickCounter > 15 * 20){
-            transitionTo(RoundState.LEVEL_UP);
-        } else if(tickCounter > 5 * 20){
-            transitionTo(RoundState.RUNNING);
+            return;
         }
 
         tickCounter++;
