@@ -110,7 +110,7 @@ public class RoundManager {
                 debugViewers.stream()
                         .map(Bukkit::getPlayer)
                         .filter(Objects::nonNull) // Crucial: prevents NPE if a player is offline
-                        .filter(player -> player.getWorld() != world)
+                        .filter(player -> player.getWorld() == world)
                         .collect(Collectors.toList())
         );
     }

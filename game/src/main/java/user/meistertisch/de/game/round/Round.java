@@ -2,7 +2,6 @@ package user.meistertisch.de.game.round;
 
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextReplacementConfig;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.*;
@@ -17,7 +16,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Time;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +26,7 @@ public class Round {
     private static final int ROUND_DURATION = 30 * 60 * 20; // minutes * 60 seconds * 20 ticks/second
     private UUID owner;
     private RoundState state = RoundState.PREPARING;
+    private long runningTickCounter = 0;
     private long tickCounter = 0;
     private World arenaWorld;
     private double tempMovementSpeed = 0;
@@ -39,31 +38,33 @@ public class Round {
     private final long[] tickSamplesNanos = new long[SAMPLE_SIZE];
     private int sampleIndex = 0;
     private int sampleCount = 0;
+    private BossBar debugBar;
 
     public Round(UUID owner) {
         this.owner = owner;
     }
 
     void tick() {
-        // Only advance the run timer while actively running (freeze on LEVEL_UP or PAUSED)
-        if (state != RoundState.RUNNING) {
-            return;
-        }
-
-        long startNanos = System.nanoTime();
-
         tickCounter++;
-        // HERE LOGIC FOR TICKING (Monsters, Projectiles, ...)
 
-        long durationNanos = System.nanoTime() - startNanos;
-        recordTickDuration(durationNanos);
+        // Only advance the run timer while actively running (freeze on LEVEL_UP or PAUSED)
+        if (state == RoundState.RUNNING) {
+            long startNanos = System.nanoTime();
+
+            runningTickCounter++;
+            // HERE LOGIC FOR TICKING (Monsters, Projectiles, ...)
+
+            long durationNanos = System.nanoTime() - startNanos;
+            recordTickDuration(durationNanos);
+        }
 
         if (tickCounter % 20 == 0) {
             updateBossBar();
+            sendTimeActionBar();
         }
 
-        // Optional: check if the 30-minute run limit (36,000 ticks) is reached[cite: 5, 34]
-        if (tickCounter >= ROUND_DURATION) {
+        // Optional: check if the 30-minute run limit (36,000 ticks) is reached
+        if (runningTickCounter >= ROUND_DURATION) {
             transitionTo(RoundState.ENDING);
         }
     }
@@ -99,15 +100,20 @@ public class Round {
 
     private void updateBossBar() {
         //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
-        float progress = (float) tickCounter / ROUND_DURATION;
+        float progress = (float) runningTickCounter / ROUND_DURATION;
         Component title = getDebugMessage();
 
-        BossBar debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+        if(debugBar == null) debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+        else {
+            debugBar.name(title);
+            debugBar.progress(progress);
+        }
+
         Game.getRoundManager().getDebugAudience(arenaWorld).showBossBar(debugBar);
     }
 
     public Component getDebugMessage() {
-        Duration duration = Duration.ofMillis(tickCounter * 50L);
+        Duration duration = Duration.ofMillis(runningTickCounter * 50L);
         String time = String.format("%02d:%02d:%02d", duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
         double tickAverage = getAverageTickMillis();
         double tickMax = getMaxTickMillis();
@@ -132,7 +138,7 @@ public class Round {
         this.state = next;
 
         // 1. Handle leaving the previous state
-        if (previous == RoundState.LEVEL_UP) {
+        if (previous == RoundState.LEVEL_UP || previous == RoundState.PAUSED) {
             unfreezePlayer(); // Restore movement & jump attributes
         }
 
@@ -243,6 +249,15 @@ public class Round {
         }
     }
 
+    private void sendTimeActionBar(){
+        Duration duration = Duration.ofMillis(runningTickCounter * 50L);
+        String timeStr = String.format("Playtime: %02d:%02d:%02d", duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
+        Component time = Component.text(timeStr);
+
+        arenaWorld.getPlayers().forEach(player -> player.sendActionBar(time));
+    }
+
+    // Cleanup
     private void cleanup() {
         // 1. Restore player state (speed, health scale, clear inventory/effects)
         // 2. Remove all spawned monsters, projectiles, and display entities (Milestone 2+)[cite: 37]
@@ -291,12 +306,12 @@ public class Round {
         return owner;
     }
 
-    public long getTickCounter() {
-        return tickCounter;
+    public long getRunningTickCounter() {
+        return runningTickCounter;
     }
 
     public int getElapsedSeconds() {
-        return (int) (tickCounter / 20L);
+        return (int) (runningTickCounter / 20L);
     }
 
 
