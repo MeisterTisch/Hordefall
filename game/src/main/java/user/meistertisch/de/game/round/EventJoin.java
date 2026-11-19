@@ -1,9 +1,12 @@
 package user.meistertisch.de.game.round;
 
+import io.papermc.paper.event.player.PlayerClientLoadedWorldEvent;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -23,12 +26,24 @@ public class EventJoin implements Listener {
         Round round = Game.getRoundManager().getRound(uuid);
 
         if(round == null){
-            Game.getRoundManager().registerRound(event.getPlayer()); // TODO: Remove or refactor. It's for debug currently
-//            event.getPlayer().kick(Component.text("No active round!"), PlayerKickEvent.Cause.ILLEGAL_ACTION);
+//            event.getPlayer().kick(Component.text("No active round!"), PlayerKickEvent.Cause.ILLEGAL_ACTION); // TODO: Uncommment kick, removed due to debug
         } else {
-            System.out.println("Countdown!");
             round.transitionTo(RoundState.COUNTDOWN);
             event.getPlayer().teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
+        }
+    }
+
+    @EventHandler
+    public void onWorldChange(PlayerClientLoadedWorldEvent event){
+        Player player = event.getPlayer();
+
+        Round round = Game.getRoundManager().getRound(player.getUniqueId());
+        if(round == null){
+            return;
+        }
+
+        if(round.getWorld() == player.getWorld() && !event.isTimeout()){
+            round.transitionTo(RoundState.COUNTDOWN);
         }
     }
 
