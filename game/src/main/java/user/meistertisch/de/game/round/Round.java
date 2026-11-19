@@ -17,10 +17,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 public class Round {
     private static final int ROUND_DURATION = 30 * 60 * 20; // minutes * 60 seconds * 20 ticks/second
@@ -34,6 +35,7 @@ public class Round {
     private int mobsQuantity = 0;
 
     // Debug
+    private final Set<UUID> currentDebugViewers = new HashSet<>();
     private static final int SAMPLE_SIZE = 20; // Rolling average over the last 20 ticks (1 second)
     private final long[] tickSamplesNanos = new long[SAMPLE_SIZE];
     private int sampleIndex = 0;
@@ -99,17 +101,57 @@ public class Round {
     }
 
     private void updateBossBar() {
+        // 1. Determine who SHOULD see the boss bar right now
+        // (Active debug viewers who are online AND inside this round's arena world)
+        Set<UUID> desiredViewers = Game.getRoundManager().getDebugViewers().stream()
+                .map(Bukkit::getPlayer)
+                .filter(Objects::nonNull)
+                .filter(player -> player.getWorld().equals(arenaWorld))
+                .map(Player::getUniqueId)
+                .collect(Collectors.toSet());
+
+        // 2. Identify new viewers: in desired, but not yet viewing
+        for (UUID uuid : desiredViewers) {
+            if (!currentDebugViewers.contains(uuid)) {
+                Player player = Bukkit.getPlayer(uuid);
+                if (player != null) {
+                    player.showBossBar(debugBar);
+                }
+            }
+        }
+
+        // 3. Identify removed viewers: viewing, but no longer desired
+        // (Ran /round debug off, teleported to lobby/another world, or logged out)
+        Iterator<UUID> iterator = currentDebugViewers.iterator();
+        while (iterator.hasNext()) {
+            UUID uuid = iterator.next();
+            if (!desiredViewers.contains(uuid)) {
+                Player player = Bukkit.getPlayer(uuid);
+                if (player != null) {
+                    player.hideBossBar(debugBar);
+                }
+                iterator.remove();
+            }
+        }
+
+        // 4. Update the tracker
+        currentDebugViewers.addAll(desiredViewers);
+
+        // 5. Update the BossBar
         //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
         float progress = (float) runningTickCounter / ROUND_DURATION;
         Component title = getDebugMessage();
 
-        if(debugBar == null) debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+        if(debugBar == null)
+            debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
         else {
             debugBar.name(title);
             debugBar.progress(progress);
         }
+    }
 
-        Game.getRoundManager().getDebugAudience(arenaWorld).showBossBar(debugBar);
+    private void hideBossBar(){
+        arenaWorld.getPlayers().forEach(player -> player.hideBossBar(debugBar));
     }
 
     public Component getDebugMessage() {
@@ -262,6 +304,7 @@ public class Round {
         // 1. Restore player state (speed, health scale, clear inventory/effects)
         // 2. Remove all spawned monsters, projectiles, and display entities (Milestone 2+)[cite: 37]
         // 3. Clear internal maps/lists so nothing leaks[cite: 37]
+        hideBossBar();
         kickPlayers();
         cleanupWorld();
     }

@@ -104,14 +104,4 @@ public class RoundManager {
     public Set<UUID> getDebugViewers(){
         return Set.copyOf(debugViewers);
     }
-
-    public Audience getDebugAudience(World world){
-        return Audience.audience(
-                debugViewers.stream()
-                        .map(Bukkit::getPlayer)
-                        .filter(Objects::nonNull) // Crucial: prevents NPE if a player is offline
-                        .filter(player -> player.getWorld() == world)
-                        .collect(Collectors.toList())
-        );
-    }
 }
