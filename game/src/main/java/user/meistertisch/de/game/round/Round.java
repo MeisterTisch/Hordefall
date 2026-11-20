@@ -7,6 +7,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.codehaus.plexus.util.FileUtils;
@@ -142,7 +143,7 @@ public class Round {
         float progress = (float) runningTickCounter / ROUND_DURATION;
         Component title = getDebugMessage();
 
-        if(debugBar == null)
+        if (debugBar == null)
             debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
         else {
             debugBar.name(title);
@@ -150,7 +151,7 @@ public class Round {
         }
     }
 
-    private void hideBossBar(){
+    private void hideBossBar() {
         arenaWorld.getPlayers().forEach(player -> player.hideBossBar(debugBar));
     }
 
@@ -207,7 +208,7 @@ public class Round {
 
 
     // Round and Server
-    public CompletableFuture<Void> prepare(Plugin plugin, String arenaName) {
+    public CompletableFuture<Location> prepare(Plugin plugin, String arenaName) {
         String worldName = "round_" + owner;
         Path levelPath = Game.getPlugin().getServer().getLevelDirectory();
         File templateDir = levelPath.resolve("dimensions/minecraft/templates/" + arenaName).toFile();
@@ -227,7 +228,7 @@ public class Round {
             }
         }).thenCompose(v -> {
             // 2. Load the world on the main thread
-            CompletableFuture<Void> mainThreadFuture = new CompletableFuture<>();
+            CompletableFuture<Location> mainThreadFuture = new CompletableFuture<>();
             Bukkit.getScheduler().runTask(plugin, () -> {
                 try {
                     World world = new WorldCreator(worldName).createWorld();
@@ -244,13 +245,43 @@ public class Round {
 
                     this.arenaWorld = world;
                     transitionTo(RoundState.WAITING); // Ready for player!
-                    mainThreadFuture.complete(null);
+
+                    File spawnYamlFile = levelPath.resolve("dimensions/minecraft/templates/" + arenaName + "/spawn.yml").toFile();
+
+                    YamlConfiguration yaml;
+
+                    try {
+                        yaml = YamlConfiguration.loadConfiguration(spawnYamlFile);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    if (!isYamlValid(yaml)) {
+                        throw new IllegalStateException("YAML Spawn file either not complete or has invalid values!");
+                    }
+
+                    double x = yaml.getDouble("x");
+                    double y = yaml.getDouble("y");
+                    double z = yaml.getDouble("z");
+                    float yaw = (float) yaml.getDouble("yaw");
+                    float pitch = (float) yaml.getDouble("pitch");
+
+                    Location spawnLocation = new Location(arenaWorld, x, y, z, yaw, pitch);
+                    mainThreadFuture.complete(spawnLocation);
                 } catch (Exception e) {
                     mainThreadFuture.completeExceptionally(e);
                 }
             });
             return mainThreadFuture;
         });
+    }
+
+    private boolean isYamlValid(YamlConfiguration yaml) {
+        return yaml.isDouble("x") &&
+               yaml.isDouble("y") &&
+               yaml.isDouble("z") &&
+               yaml.isDouble("yaw") &&
+               yaml.isDouble("pitch");
     }
 
     private void preparePlayer() {
@@ -291,7 +322,7 @@ public class Round {
         }
     }
 
-    private void sendTimeActionBar(){
+    private void sendTimeActionBar() {
         Duration duration = Duration.ofMillis(runningTickCounter * 50L);
         String timeStr = String.format("Playtime: %02d:%02d:%02d", duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
         Component time = Component.text(timeStr);
