@@ -312,24 +312,44 @@ public class Round {
     private void cleanupWorld() {
         if (arenaWorld == null) return;
 
-        if (!arenaWorld.getPlayers().isEmpty()) {
-            arenaWorld.getPlayers().forEach(Player::kick);
+        // 1. Move all players out immediately so the world has 0 players
+        World fallbackWorld = Bukkit.getWorlds().getFirst(); // Root overworld
+        for (Player player : arenaWorld.getPlayers()) {
+            if (fallbackWorld != null && !fallbackWorld.equals(arenaWorld)) {
+                player.teleport(fallbackWorld.getSpawnLocation());
+            }
+            player.kick(Component.text("Thanks for playing. Round ended."));
         }
 
+        // 2. Unload the world and ALWAYS verify the return boolean
         File worldFolder = arenaWorld.getWorldFolder();
-
-        // 1. Unload without saving on the main thread[cite: 19, 36]
-        Bukkit.unloadWorld(arenaWorld, false);
+        boolean unloaded = Bukkit.unloadWorld(arenaWorld, false);
         this.arenaWorld = null;
 
-        // 2. Delete the folder asynchronously so disk I/O doesn't stall the server[cite: 37]
-        CompletableFuture.runAsync(() -> {
+        if (!unloaded) {
+            Game.getPlugin().getLogger().warning("Failed to unload arena world: " + worldFolder.getName());
+            return;
+        }
+
+        // 3. Delete the folder once we know it is 100% unloaded
+        deleteWorldFolder(worldFolder, false);
+    }
+
+    public void deleteWorldFolder(File worldFolder, boolean isShutdown) {
+        Runnable deleteAction = () -> {
             try {
                 FileUtils.deleteDirectory(worldFolder);
             } catch (IOException e) {
-                Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't delete the folder!", e);
+                Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't delete arena folder: " + worldFolder.getName(), e);
             }
-        });
+        };
+
+        if (isShutdown) {
+            // Run synchronously during shutdown so JVM doesn't terminate mid-deletion
+            deleteAction.run();
+        } else {
+            CompletableFuture.runAsync(deleteAction);
+        }
     }
 
     private void kickPlayers() {
