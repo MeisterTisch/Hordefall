@@ -18,19 +18,19 @@ public class RoundManager {
     private final Set<UUID> debugViewers;
     private BukkitTask tickTask;
 
-    public RoundManager(){
+    public RoundManager() {
         activeRounds = new HashMap<>();
         debugViewers = new HashSet<>();
     }
 
     // Tick Task
-    public void startTickTask(){
-        if(tickTask != null) return;
+    public void startTickTask() {
+        if (tickTask != null) return;
 
         tickTask = Game.getPlugin().getServer().getScheduler().runTaskTimer(Game.getPlugin(), () -> {
-            if(activeRounds.isEmpty()) return;
+            if (activeRounds.isEmpty()) return;
 
-            for (Round round : List.copyOf(activeRounds.values())){
+            for (Round round : List.copyOf(activeRounds.values())) {
                 try {
                     if (round.getState() == RoundState.ENDING) {
                         activeRounds.remove(round.getOwner());
@@ -45,7 +45,7 @@ public class RoundManager {
         }, 0, 1);
     }
 
-    public void stopTickTask(){
+    public void stopTickTask() {
         if (tickTask != null) {
             tickTask.cancel();
             tickTask = null;
@@ -56,20 +56,22 @@ public class RoundManager {
 
 
     // Register
-    public void registerRound(Player owner, String arena){
+    public void registerRound(Player owner, String arena) {
         Round round = new Round(owner.getUniqueId());
         activeRounds.put(owner.getUniqueId(), round);
-        round.prepare(Game.getPlugin(), arena).thenRun(() -> {
-            // Runs only once the world is 100% loaded on the main thread!
-            owner.teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
-        }).exceptionally(_ -> {
-            owner.sendMessage("Failed to load arena '" + arena + "'!");
-            this.unregisterRound(owner.getUniqueId());
-            return null;
-        });
+        // Runs only once the world is 100% loaded on the main thread!
+        round.prepare(Game.getPlugin(), arena)
+                .thenAccept(owner::teleport)
+                .exceptionally(e -> {
+                    owner.sendMessage("Failed to load arena '" + arena + "'!");
+                    Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't generate round for '" + owner.getName() + "' with '" + arena + "' due to this error:");
+                    e.printStackTrace();
+                    this.unregisterRound(owner.getUniqueId());
+                    return null;
+                });
     }
 
-    public void unregisterRound(UUID owner){
+    public void unregisterRound(UUID owner) {
         Round round = activeRounds.remove(owner);
         if (round != null) {
             round.transitionTo(RoundState.ENDING);
@@ -79,7 +81,7 @@ public class RoundManager {
 
     // Getter
     @Nullable
-    public Round getRound(UUID owner){
+    public Round getRound(UUID owner) {
         return activeRounds.get(owner);
     }
 
@@ -89,19 +91,19 @@ public class RoundManager {
 
 
     // Debug
-    public boolean addDebugViewer(UUID viewer){
+    public boolean addDebugViewer(UUID viewer) {
         return debugViewers.add(viewer);
     }
 
-    public boolean removeDebugViewer(UUID viewer){
+    public boolean removeDebugViewer(UUID viewer) {
         return debugViewers.remove(viewer);
     }
 
-    public boolean isDebugViewer(UUID viewer){
+    public boolean isDebugViewer(UUID viewer) {
         return debugViewers.contains(viewer);
     }
 
-    public Set<UUID> getDebugViewers(){
+    public Set<UUID> getDebugViewers() {
         return Set.copyOf(debugViewers);
     }
 }
