@@ -4,6 +4,18 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump override (optional)'
+        required: false
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - issue
+          - milestone
+          - project
+          - major
 
 permissions:
   contents: write
@@ -18,16 +30,115 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine Version
+      - name: Determine 4-Digit Version
         id: semver
-        uses: paulhatch/semantic-version@v5.4.0
-        with:
-          tag_prefix: "v"
-          major_pattern: "(MAJOR)"
-          minor_pattern: 'feature/'
-          patch_pattern: "fix:"
-          default_bump: "patch"
-          version_format: "${major}.${minor}.${patch}"
+        shell: bash
+        env:
+          INPUT_BUMP: ${{ github.event.inputs.bump }}
+          INITIAL_VERSION: "0.0.0.0"
+        run: |
+          set -euo pipefail
+
+          # Ensure all tags are fetched
+          git fetch --tags --force 2>/dev/null || true
+
+          # Find the latest 4-digit tag reachable from HEAD
+          LATEST_4DIGIT_TAG=$(git describe --tags --match "v[0-9]*.[0-9]*.[0-9]*.[0-9]*" --abbrev=0 2>/dev/null || true)
+          if [ -z "$LATEST_4DIGIT_TAG" ]; then
+            # Fallback to any 4-digit tag in the repo
+            LATEST_4DIGIT_TAG=$(git tag -l --sort=-v:refname "v[0-9]*.[0-9]*.[0-9]*.[0-9]*" | head -n 1)
+          fi
+
+          if [ -n "$LATEST_4DIGIT_TAG" ]; then
+            echo "Found previous 4-digit tag: $LATEST_4DIGIT_TAG"
+            BASE_TAG="$LATEST_4DIGIT_TAG"
+            CLEAN_VERSION="${BASE_TAG#v}"
+            IFS="." read -r MAJOR PROJECT MILESTONE ISSUE <<< "$CLEAN_VERSION"
+            COMMIT_RANGE="${BASE_TAG}..HEAD"
+          else
+            # Check for legacy 3-digit tag (e.g. v0.2.3) to transition seamlessly
+            LEGACY_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git tag -l --sort=-v:refname "v*" | head -n 1)
+            if [ -n "$LEGACY_TAG" ]; then
+              echo "No 4-digit tag found. Transitioning from legacy tag: $LEGACY_TAG"
+              CLEAN_LEGACY="${LEGACY_TAG#v}"
+              IFS="." read -r LEG_MAJOR LEG_MINOR LEG_PATCH <<< "$CLEAN_LEGACY"
+              MAJOR="${LEG_MAJOR:-0}"
+              PROJECT="0"
+              MILESTONE="${LEG_MINOR:-0}"
+              ISSUE="${LEG_PATCH:-0}"
+              COMMIT_RANGE="${LEGACY_TAG}..HEAD"
+            else
+              echo "No tags found. Using initial baseline version: $INITIAL_VERSION"
+              CLEAN_VERSION="${INITIAL_VERSION#v}"
+              IFS="." read -r MAJOR PROJECT MILESTONE ISSUE <<< "$CLEAN_VERSION"
+              COMMIT_RANGE="HEAD"
+            fi
+          fi
+
+          MAJOR=${MAJOR:-0}
+          PROJECT=${PROJECT:-0}
+          MILESTONE=${MILESTONE:-0}
+          ISSUE=${ISSUE:-0}
+
+          echo "Current base version: ${MAJOR}.${PROJECT}.${MILESTONE}.${ISSUE}"
+
+          # Determine bump type
+          BUMP="${INPUT_BUMP:-auto}"
+
+          if [ "$BUMP" = "auto" ] || [ -z "$BUMP" ]; then
+            COMMITS=""
+            if [ "$COMMIT_RANGE" = "HEAD" ]; then
+              COMMITS=$(git log HEAD -n 30 --pretty=format:"%s %b" 2>/dev/null || true)
+            else
+              COMMITS=$(git log "$COMMIT_RANGE" --pretty=format:"%s %b" 2>/dev/null || true)
+            fi
+
+            if echo "$COMMITS" | grep -iqE "(\(major\)|\[major\]|(^|[[:space:]])major:|breaking)"; then
+              BUMP="major"
+            elif echo "$COMMITS" | grep -iqE "(\(project\)|\[project\]|(^|[[:space:]])project:|/project/|project/)"; then
+              BUMP="project"
+            elif echo "$COMMITS" | grep -iqE "(\(milestone\)|\[milestone\]|(^|[[:space:]])milestone:|/milestone/|milestone/)"; then
+              BUMP="milestone"
+            else
+              BUMP="issue"
+            fi
+          fi
+
+          echo "Detected bump type: $BUMP"
+
+          case "$BUMP" in
+            "major")
+              MAJOR=$((MAJOR + 1))
+              PROJECT=0
+              MILESTONE=0
+              ISSUE=0
+              ;;
+            "project")
+              PROJECT=$((PROJECT + 1))
+              MILESTONE=0
+              ISSUE=0
+              ;;
+            "milestone")
+              MILESTONE=$((MILESTONE + 1))
+              ISSUE=0
+              ;;
+            "issue"|*)
+              ISSUE=$((ISSUE + 1))
+              ;;
+          esac
+
+          NEW_VERSION="${MAJOR}.${PROJECT}.${MILESTONE}.${ISSUE}"
+          NEW_TAG="v${NEW_VERSION}"
+
+          echo "New Version: $NEW_VERSION"
+          echo "New Tag: $NEW_TAG"
+
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "major=${MAJOR}" >> "$GITHUB_OUTPUT"
+          echo "project=${PROJECT}" >> "$GITHUB_OUTPUT"
+          echo "milestone=${MILESTONE}" >> "$GITHUB_OUTPUT"
+          echo "issue=${ISSUE}" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 27
         uses: actions/setup-java@v4
