@@ -125,7 +125,7 @@ public class CommandRound implements TabExecutor {
         }
 
         RoundState state = RoundState.valueOf(stateString);
-        owner.sendMessage("Switching State from '" + round.getState().name() + "' to '" + stateString + "' for Round for '" + owner.getName() + "'.");
+        owner.sendMessage("Trying to switch State from '" + round.getState().name() + "' to '" + stateString + "' for Round for '" + owner.getName() + "'.");
         round.transitionTo(state);
     }
 

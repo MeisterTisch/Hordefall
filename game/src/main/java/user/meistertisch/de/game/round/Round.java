@@ -173,7 +173,10 @@ public class Round {
 
     // States
     void transitionTo(RoundState next) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Trying to transition from '%s' to '%s' for round from UUID '%s'.", state, next, owner));
+
         if (this.state == next || !isValidTransition(this.state, next)) {
+            Game.getPlugin().getLogger().log(Level.WARNING, String.format("Invalid transition from '%s' to '%s' for round from UUID '%s'!", state, next, owner));
             return; // Ignore duplicate or illegal transitions
         }
 
@@ -184,6 +187,8 @@ public class Round {
         if (previous == RoundState.LEVEL_UP || previous == RoundState.PAUSED) {
             unfreezePlayer(); // Restore movement & jump attributes
         }
+
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("State transitioned from '%s' to '%s' for round from UUID '%s'.", previous, state, owner));
 
         // 2. Handle entering the new state
         switch (next) {
@@ -209,6 +214,8 @@ public class Round {
 
     // Round and Server
     public CompletableFuture<Location> prepare(Plugin plugin, String arenaName) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Preparing new round for UUID '%s' with arena '%s'.", owner, arenaName));
+
         String worldName = "round_" + owner;
         Path levelPath = Game.getPlugin().getServer().getLevelDirectory();
         File templateDir = levelPath.resolve("dimensions/minecraft/templates/" + arenaName).toFile();
@@ -219,6 +226,7 @@ public class Round {
         // 1. Copy template files asynchronously (off the main thread)
         return CompletableFuture.runAsync(() -> {
             try {
+                Game.getPlugin().getLogger().log(Level.INFO, String.format("Copying template for round for UUID '%s' with arena '%s'.", owner, arenaName));
                 FileUtils.copyDirectoryStructure(sourceDir, targetDir);
                 // Delete uid.dat and session.lock so Bukkit treats it as a fresh world
                 Files.deleteIfExists(targetDir.toPath().resolve("uid.dat"));
@@ -231,6 +239,7 @@ public class Round {
             CompletableFuture<Location> mainThreadFuture = new CompletableFuture<>();
             Bukkit.getScheduler().runTask(plugin, () -> {
                 try {
+                    Game.getPlugin().getLogger().log(Level.INFO, String.format("Creating new world for round for UUID '%s' with arena '%s'.", owner, arenaName));
                     World world = new WorldCreator(worldName).createWorld();
                     if (world == null) {
                         throw new IllegalStateException("Failed to load arena world: " + worldName);
@@ -285,6 +294,8 @@ public class Round {
     }
 
     private void preparePlayer() {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Preparing player from round for UUID '%s'.", owner));
+
         Player player;
         do {
             player = Bukkit.getPlayer(owner);
@@ -294,9 +305,13 @@ public class Round {
         if (attr != null) attr.setBaseValue(0.1);
         attr = player.getAttribute(Attribute.JUMP_STRENGTH);
         if (attr != null) attr.setBaseValue(0);
+
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Player prepared from round for UUID '%s'.", owner));
     }
 
     private void freezePlayer() {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Freezing Player from round for UUID '%s'.", owner));
+
         Player player;
         do {
             player = Bukkit.getPlayer(owner);
@@ -308,9 +323,13 @@ public class Round {
         if (speedAttr != null) {
             speedAttr.setBaseValue(0.0);
         }
+
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Player frozen from round for UUID '%s'.", owner));
     }
 
     private void unfreezePlayer() {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Unfreezing Player from round for UUID '%s'.", owner));
+
         Player player = Bukkit.getPlayer(owner);
         if (player == null) {
             return;
@@ -320,6 +339,8 @@ public class Round {
         if (speedAttr != null) {
             speedAttr.setBaseValue(tempMovementSpeed);
         }
+
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Player unfrozen from round for UUID '%s'.", owner));
     }
 
     private void sendTimeActionBar() {
@@ -343,6 +364,8 @@ public class Round {
     private void cleanupWorld() {
         if (arenaWorld == null) return;
 
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Cleaning up world from round for UUID '%s'.", owner));
+
         // 1. Move all players out immediately so the world has 0 players
         World fallbackWorld = Bukkit.getWorlds().getFirst(); // Root overworld
         for (Player player : arenaWorld.getPlayers()) {
@@ -362,11 +385,15 @@ public class Round {
             return;
         }
 
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("World cleaned up from round for UUID '%s'.", owner));
+
         // 3. Delete the folder once we know it is 100% unloaded
         deleteWorldFolder(worldFolder, false);
     }
 
     public void deleteWorldFolder(File worldFolder, boolean isShutdown) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Deleting world from round for UUID '%s'.", owner));
+
         Runnable deleteAction = () -> {
             try {
                 FileUtils.deleteDirectory(worldFolder);
@@ -381,14 +408,20 @@ public class Round {
         } else {
             CompletableFuture.runAsync(deleteAction);
         }
+
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Deleted world from round for UUID '%s'.", owner));
     }
 
     private void kickPlayers() {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Kicking all players in world from round for UUID '%s'.", owner));
+
         if (arenaWorld == null) return;
 
         if (!arenaWorld.getPlayers().isEmpty()) {
             arenaWorld.getPlayers().forEach(player -> player.kick(Component.text("Thanks for playing. Round ended.")));
         }
+
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Kicked all players in world from round for UUID '%s'.", owner));
     }
 
     // GETTER
