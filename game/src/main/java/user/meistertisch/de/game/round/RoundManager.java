@@ -47,6 +47,7 @@ public class RoundManager {
 
     public void stopTickTask() {
         if (tickTask != null) {
+            Game.getPlugin().getLogger().log(Level.INFO, "Stopping Tick Task.");
             tickTask.cancel();
             tickTask = null;
         }
@@ -57,6 +58,8 @@ public class RoundManager {
 
     // Register
     public void registerRound(Player owner, String arena) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Registering new round for player '%s' with arena '%s'.", owner.getName(), arena));
+
         Round round = new Round(owner.getUniqueId());
         activeRounds.put(owner.getUniqueId(), round);
         // Runs only once the world is 100% loaded on the main thread!
@@ -69,9 +72,12 @@ public class RoundManager {
                     this.unregisterRound(owner.getUniqueId());
                     return null;
                 });
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Round created for Player '%s' with arena '%s'!", owner.getName(), arena));
     }
 
     public void unregisterRound(UUID owner) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Unregistering round for UUID '%s'.", owner));
+
         Round round = activeRounds.remove(owner);
         if (round != null) {
             round.transitionTo(RoundState.ENDING);
