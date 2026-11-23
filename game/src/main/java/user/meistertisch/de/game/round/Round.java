@@ -102,7 +102,19 @@ public class Round {
     }
 
     private void updateBossBar() {
-        // 1. Determine who SHOULD see the boss bar right now
+        // 1. Update the BossBar
+        //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
+        float progress = (float) runningTickCounter / ROUND_DURATION;
+        Component title = getDebugMessage();
+
+        if (debugBar == null)
+            debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+        else {
+            debugBar.name(title);
+            debugBar.progress(progress);
+        }
+
+        // 2. Determine who SHOULD see the boss bar right now
         // (Active debug viewers who are online AND inside this round's arena world)
         Set<UUID> desiredViewers = Game.getRoundManager().getDebugViewers().stream()
                 .map(Bukkit::getPlayer)
@@ -111,7 +123,7 @@ public class Round {
                 .map(Player::getUniqueId)
                 .collect(Collectors.toSet());
 
-        // 2. Identify new viewers: in desired, but not yet viewing
+        // 3. Identify new viewers: in desired, but not yet viewing
         for (UUID uuid : desiredViewers) {
             if (!currentDebugViewers.contains(uuid)) {
                 Player player = Bukkit.getPlayer(uuid);
@@ -121,7 +133,7 @@ public class Round {
             }
         }
 
-        // 3. Identify removed viewers: viewing, but no longer desired
+        // 4. Identify removed viewers: viewing, but no longer desired
         // (Ran /round debug off, teleported to lobby/another world, or logged out)
         Iterator<UUID> iterator = currentDebugViewers.iterator();
         while (iterator.hasNext()) {
@@ -135,20 +147,8 @@ public class Round {
             }
         }
 
-        // 4. Update the tracker
+        // 5. Update the tracker
         currentDebugViewers.addAll(desiredViewers);
-
-        // 5. Update the BossBar
-        //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
-        float progress = (float) runningTickCounter / ROUND_DURATION;
-        Component title = getDebugMessage();
-
-        if (debugBar == null)
-            debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
-        else {
-            debugBar.name(title);
-            debugBar.progress(progress);
-        }
     }
 
     private void hideBossBar() {
@@ -348,7 +348,7 @@ public class Round {
         String timeStr = String.format("Playtime: %02d:%02d:%02d", duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
         Component time = Component.text(timeStr);
 
-        arenaWorld.getPlayers().forEach(player -> player.sendActionBar(time));
+        if(arenaWorld != null) arenaWorld.getPlayers().forEach(player -> player.sendActionBar(time)); // If Check: Falls Welt langsamer geladen wird, vermeidet der Check einen null Exception (arenaWorld)
     }
 
     // Cleanup
