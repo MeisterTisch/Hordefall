@@ -17,7 +17,7 @@ import org.yaml.snakeyaml.error.YAMLException;
 
 public final class ArenaTemplateValidator {
     private static final String LEVEL_DAT = "level.dat";
-    private static final String REGION_DIR = "region";
+    private static final String REGION_DIR = "dimensions/minecraft/overworld/region";
     private static final String SPAWN_FILE = "spawn.yml";
 
     public TemplateScanResult scan(Path templatesDir) {
@@ -68,6 +68,7 @@ public final class ArenaTemplateValidator {
             return;
         }
         if (!Files.isDirectory(arenaDir.resolve(REGION_DIR))) {
+            System.out.println(arenaDir + " " + REGION_DIR);
             errors.put(id, "missing region directory");
             return;
         }

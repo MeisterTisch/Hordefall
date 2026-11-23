@@ -9,6 +9,8 @@ import user.meistertisch.de.game.round.CommandRound;
 import user.meistertisch.de.game.round.EventJoin;
 import user.meistertisch.de.game.round.EventVanillaCancel;
 import user.meistertisch.de.game.round.RoundManager;
+import user.meistertisch.de.game.round.arena.ArenaTemplateRegistry;
+import user.meistertisch.de.game.round.arena.ArenaTemplateValidator;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +20,7 @@ import java.util.logging.Level;
 public final class Game extends JavaPlugin {
     private static Plugin plugin;
     private static RoundManager roundManager;
+    private static ArenaTemplateRegistry arenaTemplateRegistry;
 
     @Override
     public void onEnable(){
@@ -26,6 +29,14 @@ public final class Game extends JavaPlugin {
         saveDefaultConfig();
 
         cleanupOrphanedWorlds();
+
+        Path templatesDir = getServer().getLevelDirectory().resolve("dimensions/minecraft/templates");
+        arenaTemplateRegistry = new ArenaTemplateRegistry(
+                templatesDir,
+                new ArenaTemplateValidator(),
+                getSLF4JLogger()
+        );
+        arenaTemplateRegistry.reload();
 
         roundManager = new RoundManager();
         roundManager.startTickTask();
@@ -49,6 +60,10 @@ public final class Game extends JavaPlugin {
 
     public static RoundManager getRoundManager() {
         return roundManager;
+    }
+
+    public static ArenaTemplateRegistry getArenaTemplateRegistry() {
+        return arenaTemplateRegistry;
     }
 
     private void cleanupOrphanedWorlds() {

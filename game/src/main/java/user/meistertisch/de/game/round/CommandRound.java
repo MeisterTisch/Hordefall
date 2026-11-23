@@ -1,5 +1,7 @@
 package user.meistertisch.de.game.round;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabExecutor;
@@ -7,22 +9,30 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import user.meistertisch.de.game.Game;
+import user.meistertisch.de.game.round.arena.ArenaTemplate;
+import user.meistertisch.de.game.round.arena.ArenaTemplateRegistry;
+import user.meistertisch.de.game.round.arena.TemplateScanResult;
 
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 public class CommandRound implements TabExecutor {
     // TabExecutor
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String @NotNull [] args) {
-        if(!(sender instanceof Player player)){
-            sender.sendMessage("Only for players");
+        if(!sender.isOp()){
+            sender.sendMessage("Only for players with OP!");
             return true;
         }
 
-        if(!player.isOp()){
-            player.sendMessage("Only for players with OP!");
+        if(!(sender instanceof Player) && args.length == 1 && args[0].equalsIgnoreCase("reload")){
+            reload(sender);
+            return true;
+        }
+
+        if(!(sender instanceof Player player)){
+            sender.sendMessage("Only for players");
             return true;
         }
 
@@ -32,8 +42,15 @@ public class CommandRound implements TabExecutor {
         }
 
         switch (args[0].toLowerCase()){
-            case "start" -> startRound(player, "arena1");
+            case "start" -> {
+                if(args.length == 1) {
+                    Optional<ArenaTemplate> template = Game.getArenaTemplateRegistry().getRandomArena();
+                    startRound(player, template.map(ArenaTemplate::id).orElse(null));
+                }
+                else startRound(player, args[1]);
+            }
             case "stop" -> stopRound(player);
+            case "reload" -> reload(sender);
             case "state" -> {
                 if(args.length == 1) getState(player);
                 else switchState(player, args[1]);
@@ -51,7 +68,7 @@ public class CommandRound implements TabExecutor {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String @NotNull [] args) {
         if(args.length == 1){
-            return Stream.of("start", "stop", "state", "debug")
+            return Stream.of("start", "stop", "state", "debug", "reload")
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .toList();
         } else if(args.length == 2){
@@ -65,6 +82,10 @@ public class CommandRound implements TabExecutor {
                 return Stream.of("on", "off")
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .toList();
+            } else if(args[0].equalsIgnoreCase("start")){
+                return Game.getArenaTemplateRegistry().getValidArenas().keySet().stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .toList();
             }
         }
 
@@ -73,16 +94,22 @@ public class CommandRound implements TabExecutor {
 
 
     // Subcommands
-    private void startRound(Player owner, String arena){
-        RoundManager manager = Game.getRoundManager();
+    private void startRound(Player owner, @Nullable String arena){
+        RoundManager roundManager = Game.getRoundManager();
+        ArenaTemplateRegistry templateRegistry = Game.getArenaTemplateRegistry();
 
-        if(manager.hasRound(owner.getUniqueId())){
+        if(roundManager.hasRound(owner.getUniqueId())){
             owner.sendMessage("Active Round already open!");
             return;
         }
 
+        if(arena == null || !templateRegistry.getValidArenas().containsKey(arena)){
+            owner.sendMessage("Arena not valid!");
+            return;
+        }
+
         owner.sendMessage("Registering new Round in arena '" + arena + "' for '" + owner.getName() + "'.");
-        manager.registerRound(owner, arena);
+        roundManager.registerRound(owner, arena);
     }
 
     private void stopRound(Player owner){
@@ -160,5 +187,14 @@ public class CommandRound implements TabExecutor {
         } else {
             owner.sendMessage("Invalid Argument!");
         }
+    }
+
+    private void reload(CommandSender sender){
+        ArenaTemplateRegistry arenaTemplateRegistry = Game.getArenaTemplateRegistry();
+        TemplateScanResult result = arenaTemplateRegistry.reload();
+        sender.sendMessage(Component.text(
+                "Reloaded arenas: " + result.valid().size() + " valid, " + result.errors().size() + " broken.",
+                result.hasErrors() ? NamedTextColor.YELLOW : NamedTextColor.GREEN
+        ));
     }
 }
