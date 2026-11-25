@@ -12,6 +12,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.codehaus.plexus.util.FileUtils;
 import user.meistertisch.de.game.Game;
+import user.meistertisch.de.game.round.arena.ArenaTemplate;
+import user.meistertisch.de.game.round.arena.ArenaTemplateRegistry;
 
 import java.io.File;
 import java.io.IOException;
@@ -102,7 +104,19 @@ public class Round {
     }
 
     private void updateBossBar() {
-        // 1. Determine who SHOULD see the boss bar right now
+        // 1. Update the BossBar
+        //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
+        float progress = (float) runningTickCounter / ROUND_DURATION;
+        Component title = getDebugMessage();
+
+        if (debugBar == null)
+            debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
+        else {
+            debugBar.name(title);
+            debugBar.progress(progress);
+        }
+
+        // 2. Determine who SHOULD see the boss bar right now
         // (Active debug viewers who are online AND inside this round's arena world)
         Set<UUID> desiredViewers = Game.getRoundManager().getDebugViewers().stream()
                 .map(Bukkit::getPlayer)
@@ -111,7 +125,7 @@ public class Round {
                 .map(Player::getUniqueId)
                 .collect(Collectors.toSet());
 
-        // 2. Identify new viewers: in desired, but not yet viewing
+        // 3. Identify new viewers: in desired, but not yet viewing
         for (UUID uuid : desiredViewers) {
             if (!currentDebugViewers.contains(uuid)) {
                 Player player = Bukkit.getPlayer(uuid);
@@ -121,7 +135,7 @@ public class Round {
             }
         }
 
-        // 3. Identify removed viewers: viewing, but no longer desired
+        // 4. Identify removed viewers: viewing, but no longer desired
         // (Ran /round debug off, teleported to lobby/another world, or logged out)
         Iterator<UUID> iterator = currentDebugViewers.iterator();
         while (iterator.hasNext()) {
@@ -135,20 +149,8 @@ public class Round {
             }
         }
 
-        // 4. Update the tracker
+        // 5. Update the tracker
         currentDebugViewers.addAll(desiredViewers);
-
-        // 5. Update the BossBar
-        //State: RUNNING | Time: 04:12 | Tick: 0.42 ms (max 1.15 ms) | Mobs: 284
-        float progress = (float) runningTickCounter / ROUND_DURATION;
-        Component title = getDebugMessage();
-
-        if (debugBar == null)
-            debugBar = BossBar.bossBar(title, progress, BossBar.Color.BLUE, BossBar.Overlay.PROGRESS);
-        else {
-            debugBar.name(title);
-            debugBar.progress(progress);
-        }
     }
 
     private void hideBossBar() {
@@ -213,12 +215,17 @@ public class Round {
 
 
     // Round and Server
-    public CompletableFuture<Location> prepare(Plugin plugin, String arenaName) {
-        Game.getPlugin().getLogger().log(Level.INFO, String.format("Preparing new round for UUID '%s' with arena '%s'.", owner, arenaName));
+    public CompletableFuture<Location> prepare(Plugin plugin, ArenaTemplate arena) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Preparing new round for UUID '%s' with arena '%s'.", owner, arena.id()));
+
+        if(!Game.getArenaTemplateRegistry().isUsableArena(arena)){
+            Game.getPlugin().getLogger().log(Level.INFO, String.format("Preparing new round for UUID '%s' with arena '%s'.", owner, arena.id()));
+            throw new IllegalStateException("Arena '" + arena.id() + "' is not valid and cannot be used!");
+        }
 
         String worldName = "round_" + owner;
         Path levelPath = Game.getPlugin().getServer().getLevelDirectory();
-        File templateDir = levelPath.resolve("dimensions/minecraft/templates/" + arenaName).toFile();
+        File templateDir = levelPath.resolve("dimensions/minecraft/templates/" + arena.id()).toFile();
         File overworldSubdir = new File(templateDir, "dimensions/minecraft/overworld");
         File sourceDir = overworldSubdir.exists() ? overworldSubdir : templateDir;
         File targetDir = levelPath.resolve("dimensions/minecraft").resolve(worldName).toFile();
@@ -226,7 +233,7 @@ public class Round {
         // 1. Copy template files asynchronously (off the main thread)
         return CompletableFuture.runAsync(() -> {
             try {
-                Game.getPlugin().getLogger().log(Level.INFO, String.format("Copying template for round for UUID '%s' with arena '%s'.", owner, arenaName));
+                Game.getPlugin().getLogger().log(Level.INFO, String.format("Copying template for round for UUID '%s' with arena '%s'.", owner, arena.id()));
                 FileUtils.copyDirectoryStructure(sourceDir, targetDir);
                 // Delete uid.dat and session.lock so Bukkit treats it as a fresh world
                 Files.deleteIfExists(targetDir.toPath().resolve("uid.dat"));
@@ -239,7 +246,7 @@ public class Round {
             CompletableFuture<Location> mainThreadFuture = new CompletableFuture<>();
             Bukkit.getScheduler().runTask(plugin, () -> {
                 try {
-                    Game.getPlugin().getLogger().log(Level.INFO, String.format("Creating new world for round for UUID '%s' with arena '%s'.", owner, arenaName));
+                    Game.getPlugin().getLogger().log(Level.INFO, String.format("Creating new world for round for UUID '%s' with arena '%s'.", owner, arena.id()));
                     World world = new WorldCreator(worldName).createWorld();
                     if (world == null) {
                         throw new IllegalStateException("Failed to load arena world: " + worldName);
@@ -255,27 +262,7 @@ public class Round {
                     this.arenaWorld = world;
                     transitionTo(RoundState.WAITING); // Ready for player!
 
-                    File spawnYamlFile = levelPath.resolve("dimensions/minecraft/templates/" + arenaName + "/spawn.yml").toFile();
-
-                    YamlConfiguration yaml;
-
-                    try {
-                        yaml = YamlConfiguration.loadConfiguration(spawnYamlFile);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    if (!isYamlValid(yaml)) {
-                        throw new IllegalStateException("YAML Spawn file either not complete or has invalid values!");
-                    }
-
-                    double x = yaml.getDouble("x");
-                    double y = yaml.getDouble("y");
-                    double z = yaml.getDouble("z");
-                    float yaw = (float) yaml.getDouble("yaw");
-                    float pitch = (float) yaml.getDouble("pitch");
-
-                    Location spawnLocation = new Location(arenaWorld, x, y, z, yaw, pitch);
+                    Location spawnLocation = arena.spawn().toLocation(arenaWorld);
                     mainThreadFuture.complete(spawnLocation);
                 } catch (Exception e) {
                     mainThreadFuture.completeExceptionally(e);
@@ -348,7 +335,7 @@ public class Round {
         String timeStr = String.format("Playtime: %02d:%02d:%02d", duration.toHours(), duration.toMinutesPart(), duration.toSecondsPart());
         Component time = Component.text(timeStr);
 
-        arenaWorld.getPlayers().forEach(player -> player.sendActionBar(time));
+        if(arenaWorld != null) arenaWorld.getPlayers().forEach(player -> player.sendActionBar(time)); // If Check: Falls Welt langsamer geladen wird, vermeidet der Check einen null Exception (arenaWorld)
     }
 
     // Cleanup
