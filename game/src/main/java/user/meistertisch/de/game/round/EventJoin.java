@@ -2,6 +2,9 @@ package user.meistertisch.de.game.round;
 
 import io.papermc.paper.event.player.PlayerClientLoadedWorldEvent;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -21,16 +24,28 @@ import java.util.logging.Level;
 
 public class EventJoin implements Listener {
     @EventHandler
-    public void onJoin(PlayerJoinEvent event){
+    public void onJoinForRound(PlayerJoinEvent event){
         UUID uuid = event.getPlayer().getUniqueId();
         Round round = Game.getRoundManager().getRound(uuid);
 
         if(round == null){
 //            event.getPlayer().kick(Component.text("No active round!"), PlayerKickEvent.Cause.ILLEGAL_ACTION); // TODO: Uncommment kick, removed due to debug
-        } else {
-            round.transitionTo(RoundState.COUNTDOWN);
-            event.getPlayer().teleport(new Location(round.getWorld(), 7.5, 0.2, 22.5, 180, 0));
         }
+    }
+
+    @EventHandler
+    public void onJoinForNoValidArenas(PlayerJoinEvent event){
+        if(!Game.getArenaTemplateRegistry().hasUsableArenas()){
+            Component message = Component.text()
+                    .append(Component.text("Warning: No valid arena templates are loaded! New rounds are currently blocked. ", NamedTextColor.RED))
+                    .append(Component.text("\n[Click here to get more details]", NamedTextColor.YELLOW)
+                            .clickEvent(ClickEvent.runCommand("/round arenas"))
+                            .hoverEvent(HoverEvent.showText(Component.text("Click!", NamedTextColor.GRAY))))
+                    .build();
+
+            event.getPlayer().sendMessage(message);
+        }
+
     }
 
     @EventHandler

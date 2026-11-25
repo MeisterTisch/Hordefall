@@ -1,6 +1,8 @@
 package user.meistertisch.de.game.round;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextComponent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -9,11 +11,14 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import user.meistertisch.de.game.Game;
+import user.meistertisch.de.game.round.arena.ArenaSpawn;
 import user.meistertisch.de.game.round.arena.ArenaTemplate;
 import user.meistertisch.de.game.round.arena.ArenaTemplateRegistry;
 import user.meistertisch.de.game.round.arena.TemplateScanResult;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -26,13 +31,19 @@ public class CommandRound implements TabExecutor {
             return true;
         }
 
-        if(!Game.getArenaTemplateRegistry().hasUsableArenas()){
-            sender.sendMessage("Command can't be executed, due to no valid arenas are available!");
-            return true;
+        if(args.length == 1){
+            if(args[0].equalsIgnoreCase("reload")) {
+                reload(sender);
+                return true;
+            }
+            else if(args[0].equalsIgnoreCase("arenas")) {
+                sender.sendMessage(getArenaStatuses(Game.getArenaTemplateRegistry()));
+                return true;
+            }
         }
 
-        if(!(sender instanceof Player) && args.length == 1 && args[0].equalsIgnoreCase("reload")){
-            reload(sender);
+        if(!Game.getArenaTemplateRegistry().hasUsableArenas()){
+            sender.sendMessage("Command can't be executed, due to no valid arenas are available!");
             return true;
         }
 
@@ -55,7 +66,7 @@ public class CommandRound implements TabExecutor {
                 else startRound(player, args[1]);
             }
             case "stop" -> stopRound(player);
-            case "reload" -> reload(sender);
+            case "reload" -> reload(player);
             case "state" -> {
                 if(args.length == 1) getState(player);
                 else switchState(player, args[1]);
@@ -64,6 +75,7 @@ public class CommandRound implements TabExecutor {
                 if(args.length == 1) sendDebugMessage(player);
                 else changeDebugViewer(player, args[1]);
             }
+            case "arenas" -> player.sendMessage(getArenaStatuses(Game.getArenaTemplateRegistry()));
             default -> player.sendMessage("Invalid Syntax!");
         }
 
@@ -73,7 +85,7 @@ public class CommandRound implements TabExecutor {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, @NotNull String @NotNull [] args) {
         if(args.length == 1){
-            return Stream.of("start", "stop", "state", "debug", "reload")
+            return Stream.of("start", "stop", "state", "debug", "reload", "arenas")
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .toList();
         } else if(args.length == 2){
@@ -208,5 +220,68 @@ public class CommandRound implements TabExecutor {
                 "Reloaded arenas: " + result.valid().size() + " valid, " + result.errors().size() + " broken.",
                 result.hasErrors() ? NamedTextColor.YELLOW : NamedTextColor.GREEN
         ));
+    }
+
+    public static Component getArenaStatuses(ArenaTemplateRegistry registry) {
+        Map<String, ArenaTemplate> valid = registry.getValidArenas();
+        Map<String, String> broken = registry.getBrokenArenas();
+
+        TextComponent.Builder builder = Component.text()
+                .append(Component.text("Arena Templates (", NamedTextColor.WHITE))
+                .append(Component.text(valid.size() + " valid", NamedTextColor.GREEN))
+                .append(Component.text(", ", NamedTextColor.GRAY))
+                .append(Component.text(broken.size() + " invalid",
+                        broken.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.RED))
+                .append(Component.text(")", NamedTextColor.WHITE))
+                .append(Component.newline())
+                .append(Component.newline())
+                .append(Component.text("Valid Arenas:", NamedTextColor.GREEN));
+
+        if (valid.isEmpty()) {
+            builder.append(Component.newline())
+                    .append(Component.text("  (none)", NamedTextColor.DARK_GRAY));
+        } else {
+            for (ArenaTemplate template : valid.values()) {
+                ArenaSpawn s = template.spawn();
+                String coords = String.format(Locale.ROOT,
+                        "%.2f, %.2f, %.2f (yaw %.1f, pitch %.1f)",
+                        s.x(), s.y(), s.z(), s.yaw(), s.pitch());
+
+                // Wrap each line in its own child Component so the hover event stays scoped to that arena
+                builder.append(Component.newline())
+                        .append(Component.text()
+                                .append(Component.text("  ✔ ", NamedTextColor.GREEN))
+                                .append(Component.text(template.id(), NamedTextColor.YELLOW))
+                                .append(Component.text(" — Spawn: ", NamedTextColor.GRAY))
+                                .append(Component.text(coords, NamedTextColor.WHITE))
+                                .hoverEvent(HoverEvent.showText(Component.text(
+                                        template.worldDir().toAbsolutePath().normalize().toString(),
+                                        NamedTextColor.GRAY)))
+                                .build());
+            }
+        }
+
+        if (!broken.isEmpty()) {
+            builder.append(Component.newline())
+                    .append(Component.newline())
+                    .append(Component.text("Invalid Arenas:", NamedTextColor.RED));
+
+            for (Map.Entry<String, String> entry : broken.entrySet()) {
+                builder.append(Component.newline())
+                        .append(Component.text("  ✖ ", NamedTextColor.RED))
+                        .append(Component.text(entry.getKey(), NamedTextColor.YELLOW))
+                        .append(Component.text(" — " + entry.getValue(), NamedTextColor.GRAY));
+            }
+        }
+
+        if (!registry.hasUsableArenas()) {
+            builder.append(Component.newline())
+                    .append(Component.newline())
+                    .append(Component.text(
+                            "⚠ No usable arenas available! New rounds are currently blocked.",
+                            NamedTextColor.RED));
+        }
+
+        return builder.build();
     }
 }
