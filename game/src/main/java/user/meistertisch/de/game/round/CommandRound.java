@@ -26,6 +26,11 @@ public class CommandRound implements TabExecutor {
             return true;
         }
 
+        if(!Game.getArenaTemplateRegistry().hasUsableArenas()){
+            sender.sendMessage("Command can't be executed, due to no valid arenas are available!");
+            return true;
+        }
+
         if(!(sender instanceof Player) && args.length == 1 && args[0].equalsIgnoreCase("reload")){
             reload(sender);
             return true;
@@ -108,8 +113,15 @@ public class CommandRound implements TabExecutor {
             return;
         }
 
+        Optional<ArenaTemplate> template = templateRegistry.getArena(arena);
+        if(template.isEmpty()){
+            owner.sendMessage("Arena not valid!");
+            return;
+        }
+        ArenaTemplate arenaTemplate = template.get();
+
         owner.sendMessage("Registering new Round in arena '" + arena + "' for '" + owner.getName() + "'.");
-        roundManager.registerRound(owner, arena);
+        roundManager.registerRound(owner, arenaTemplate);
     }
 
     private void stopRound(Player owner){

@@ -63,4 +63,8 @@ public final class ArenaTemplateRegistry {
     public boolean hasErrors() {
         return currentResult.hasErrors();
     }
+
+    public boolean isUsableArena(ArenaTemplate arena) {
+        return getValidArenas().containsValue(arena);
+    }
 }

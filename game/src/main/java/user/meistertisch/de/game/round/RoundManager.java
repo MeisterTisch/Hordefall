@@ -8,6 +8,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.Nullable;
 import user.meistertisch.de.game.Game;
+import user.meistertisch.de.game.round.arena.ArenaTemplate;
 
 import java.util.*;
 import java.util.logging.Level;
@@ -57,8 +58,8 @@ public class RoundManager {
 
 
     // Register
-    public void registerRound(Player owner, String arena) {
-        Game.getPlugin().getLogger().log(Level.INFO, String.format("Registering new round for player '%s' with arena '%s'.", owner.getName(), arena));
+    public void registerRound(Player owner, ArenaTemplate arena) {
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Registering new round for player '%s' with arena '%s'.", owner.getName(), arena.id()));
 
         Round round = new Round(owner.getUniqueId());
         activeRounds.put(owner.getUniqueId(), round);
@@ -67,12 +68,12 @@ public class RoundManager {
                 .thenAccept(owner::teleport)
                 .exceptionally(e -> {
                     owner.sendMessage("Failed to load arena '" + arena + "'!");
-                    Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't generate round for '" + owner.getName() + "' with '" + arena + "' due to this error:");
+                    Game.getPlugin().getLogger().log(Level.SEVERE, "Couldn't generate round for '" + owner.getName() + "' with '" + arena.id() + "' due to this error:");
                     e.printStackTrace();
                     this.unregisterRound(owner.getUniqueId());
                     return null;
                 });
-        Game.getPlugin().getLogger().log(Level.INFO, String.format("Round created for Player '%s' with arena '%s'!", owner.getName(), arena));
+        Game.getPlugin().getLogger().log(Level.INFO, String.format("Round created for Player '%s' with arena '%s'!", owner.getName(), arena.id()));
     }
 
     public void unregisterRound(UUID owner) {
