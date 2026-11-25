@@ -7,7 +7,6 @@ import java.util.Optional;
 import org.slf4j.Logger;
 
 public final class ArenaTemplateRegistry {
-
     private final Path templatesDir;
     private final ArenaTemplateValidator validator;
     private final Logger logger;

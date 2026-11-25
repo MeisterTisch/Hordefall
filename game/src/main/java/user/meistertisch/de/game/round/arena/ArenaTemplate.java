@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 
 public record ArenaTemplate(String id, Path worldDir, ArenaSpawn spawn) {
-
     public ArenaTemplate {
         Objects.requireNonNull(id, "id must not be null");
         Objects.requireNonNull(worldDir, "worldDir must not be null");
